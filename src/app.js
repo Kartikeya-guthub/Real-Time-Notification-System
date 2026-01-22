@@ -19,21 +19,55 @@ app.use(cookieParser());
 const port = process.env.PORT || 3000;
 
 const authRouter = require('./router/auth');
+const notificationRouter = require('./router/notification');
+const actionRouter = require('./router/action');
 
 app.use('/', authRouter);
+app.use('/notifications', notificationRouter);
+app.use('/', actionRouter);
 
+
+const onlineUsers = new Map();
+function isUserOnline(userId) {
+  return onlineUsers.has(userId);
+}
+
+function getUserSockets(userId) {
+  return onlineUsers.get(userId) || new Set();
+}
 
 io.on("connection", (socket) => {
+   const userId = socket.userId;
+    if(!userId){
+        console.log('User ID not found on socket');
+        socket.disconnect();
+        return;
+    }
+    if (!onlineUsers.has(userId)) {
+    onlineUsers.set(userId, new Set());
+  }
+    onlineUsers.get(userId).add(socket.id);
+
+  
   console.log(
-    `Socket connected: ${socket.id}, User: ${socket.userId}`
+    `✅ User ${userId} ONLINE | Active sockets: ${onlineUsers.get(userId).size}`
   );
 
   socket.on("disconnect", () => {
-    console.log(
-      `Socket disconnected: ${socket.id}, User: ${socket.userId}`
-    );
+    const sockets = onlineUsers.get(userId);
+    if(!sockets) return;
+    sockets.delete(socket.id);
+     if (sockets.size === 0) {
+      onlineUsers.delete(userId);
+      console.log(`🔴 User ${userId} OFFLINE`);
+    } else {
+      console.log(
+        `🟡 User ${userId} still online | Remaining sockets: ${sockets.size}`
+      );
+    }
   });
 });
+
 
 
 app.use((err, req, res, next) => {
