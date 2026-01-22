@@ -14,7 +14,7 @@ async function socketAuth(socket, next) {
         if (!user) {
             return next(new Error('Unauthorized'));
         }
-        console.log(socket.userId)
+        
 
         socket.userId = user._id.toString();
         socket.user = user;

@@ -5,9 +5,15 @@ const jwt = require('jsonwebtoken');
 const User = require('../modals/user');
 const { validateSignupData } = require('../utils/validation');
 const auth = require('../middlewares/auth');
+const rateLimit = require("express-rate-limit");
 
+const authLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10, 
+    message: 'Too many requests from this IP, please try again after 1 minute'
+});
 
-authRouter.post('/signup',  async (req, res) => {
+authRouter.post('/signup', authLimiter, async (req, res) => {
     try {
         validateSignupData(req);
         const {email, password} = req.body;
@@ -27,7 +33,7 @@ authRouter.post('/signup',  async (req, res) => {
 });
 
 
-authRouter.post('/login', async (req,res) =>{
+authRouter.post('/login', authLimiter, async (req,res) =>{
     try{
         const {email, password} = req.body;
         if(!email || !password){
@@ -62,7 +68,7 @@ authRouter.post('/login', async (req,res) =>{
     }
 })
 
-authRouter.post('/logout', (req,res) =>{
+authRouter.post('/logout', authLimiter, (req,res) =>{
     res.clearCookie('token');
     res.status(200).json({ message: 'Logged out' });
 })

@@ -1,6 +1,6 @@
 const { io } = require('socket.io-client');
 
-const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTZmY2EyNDQ4YTQ1MDUxYzkyMzRjZmMiLCJpYXQiOjE3NjkwMTI5MzEsImV4cCI6MTc2OTAxNjUzMX0.YQG5J2xqlTxIvgfJ5DRJDMFgxjFpJse_uId9OpB4LUY";
+const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTcxYzczNDBjMTEzNDRkZjNiMTE0MTIiLCJpYXQiOjE3NjkwOTgzNTksImV4cCI6MTc2OTEwMTk1OX0.uBzEAksK-uKlM8uHEZsQXAfp0YwT8pgObnEZTWuRhmk";
 
 const socket = io("http://localhost:3000", {
   auth: {
@@ -20,5 +20,9 @@ socket.on("connect_error", (err) => {
 socket.on("hello", (msg) => {
   console.log("Server says:", msg);
 });
+socket.on("notification", (payload) => {
+  console.log("New notification:", payload);
+});
+
 
 

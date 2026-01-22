@@ -3,12 +3,18 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./config/db');
 const { Server } = require("socket.io"); 
+const { onlineUsers } = require('./socket/socket');
+const { setIO } = require('./socket/io');
+const { deliverNotification } = require("./services/notificationDelivery");
+const Notification = require('./modals/notification');
 
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+setIO(io);
+
 
 const socketAuth = require('./middlewares/socketAuth');
 io.use(socketAuth);
@@ -27,15 +33,6 @@ app.use('/notifications', notificationRouter);
 app.use('/', actionRouter);
 
 
-const onlineUsers = new Map();
-function isUserOnline(userId) {
-  return onlineUsers.has(userId);
-}
-
-function getUserSockets(userId) {
-  return onlineUsers.get(userId) || new Set();
-}
-
 io.on("connection", (socket) => {
    const userId = socket.userId;
     if(!userId){
@@ -49,6 +46,20 @@ io.on("connection", (socket) => {
     onlineUsers.get(userId).add(socket.id);
 
   
+      ;(async () => {
+        try {
+          const pendingNotifications = await Notification.find({
+            recipientId: userId,
+            status: 'created'
+          }).sort({ createdAt: 1 });
+
+          for (const notification of pendingNotifications) {
+            await deliverNotification(io, onlineUsers, notification);
+          }
+        } catch (err) {
+          console.error('Failed to deliver pending notifications:', err);
+        }
+      })();
   console.log(
     `✅ User ${userId} ONLINE | Active sockets: ${onlineUsers.get(userId).size}`
   );
@@ -68,7 +79,9 @@ io.on("connection", (socket) => {
   });
 });
 
-
+module.exports = {
+  io
+}
 
 app.use((err, req, res, next) => {
     res.status(err.statusCode || 400).json({

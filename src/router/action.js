@@ -5,6 +5,18 @@ const mongoose = require('mongoose');
 const Notification = require('../modals/notification');
 const User = require('../modals/user');
 const auth = require('../middlewares/auth');
+const { deliverNotification } = require('../services/notificationDelivery');
+const { isDuplicateNotification } = require('../services/notificationDedup');
+const { getIO } = require('../socket/io');
+const { onlineUsers } = require('../socket/socket');
+const io = getIO();
+const rateLimit = require("express-rate-limit");
+
+const actionLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, 
+    max: 30, 
+    message: 'Too many actions from this IP, please try again after a minute'
+});
 
 
 async function createNotification({ recipientId, actorId, type, entityId, data, status = 'created' }) {
@@ -20,7 +32,7 @@ async function createNotification({ recipientId, actorId, type, entityId, data, 
 
 
 
-actionRouter.post('/users/:id/follow', auth, async (req, res) => {
+actionRouter.post('/users/:id/follow', auth, actionLimiter, async (req, res) => {
   try {
     const recipientId = req.params.id;
     const actorId = req.user._id;
@@ -38,9 +50,19 @@ actionRouter.post('/users/:id/follow', auth, async (req, res) => {
       throw new Error('Target user not found');
     }
 
-   
+    const isDuplicate = await isDuplicateNotification({
+    recipientId: targetUser._id,
+    actorId,
+    type: "follow",
+    entityId: null
+});
 
-    await createNotification({
+if (isDuplicate) {
+  return res.status(200).json({ message: "Already notified recently" });
+}
+
+
+  const notification = await createNotification({
       recipientId: targetUser._id,
       actorId: actorId,
       type: 'follow',
@@ -50,6 +72,7 @@ actionRouter.post('/users/:id/follow', auth, async (req, res) => {
       },
       status: 'created'
     });
+    await deliverNotification(io, onlineUsers, notification);
 
     res.status(201).json({ message: 'Follow action recorded' });
   } catch (err) {
@@ -58,7 +81,7 @@ actionRouter.post('/users/:id/follow', auth, async (req, res) => {
 });
 
 
-actionRouter.post('/users/:id/like', auth, async (req, res) => {
+actionRouter.post('/users/:id/like', auth, actionLimiter, async (req, res) => {
     try{
             const recipientId = req.params.id;
     const actorId = req.user._id;
@@ -75,8 +98,19 @@ actionRouter.post('/users/:id/like', auth, async (req, res) => {
         throw new Error('Target user not found');
     }
 
+    const isDuplicate = await isDuplicateNotification({
+    recipientId: targetUser._id,
+    actorId,
+    type: "like",
+    entityId: null
+});
 
-    await createNotification({
+    if (isDuplicate) {
+      return res.status(200).json({ message: "Already notified recently" });
+    }
+
+
+  const notification = await createNotification({
       recipientId: targetUser._id,
       actorId: actorId,
       type: 'like',
@@ -86,8 +120,10 @@ actionRouter.post('/users/:id/like', auth, async (req, res) => {
       },
       status: 'created'
     });
-
+    
+await deliverNotification(io, onlineUsers,notification);
     res.status(201).json({ message: 'Like action recorded' });
+    
 
 
     }catch(err){
